@@ -2,6 +2,10 @@
 
 Core functions for DUNE/SBND cold electronics UDP readout (python version)
 
+## Installation
+
+See INSTALL.rst
+
 ## Do this first!
 
 You must manually compile the root C++ files into executables before setting up
