@@ -19,13 +19,15 @@ import sys
 
 class WRITE_ROOT_TREE(object):
 
-    def __init__(self,femb_config,iChip,filename,numpacketsrecord):
+    def __init__(self,femb_config,iChip,filename,numpacketsrecord,highSpeed=False,packedHighSpeed=False):
     #data taking variables
         if iChip >= femb_config.NASICS:
             print("Error WRITE_ROOT_TREE: iChip >= NASICS")
             sys.exit(1)
 
         self.numpacketsrecord = numpacketsrecord
+        self.highSpeed = highSpeed
+        self.packedHighSpeed = packedHighSpeed
         #file name and metadata variables
         self.filename = filename
         self.treename = 'femb_wfdata'
@@ -68,8 +70,24 @@ class WRITE_ROOT_TREE(object):
         t.Branch( 'chan', chan, 'chan/i')
         t.Branch( 'wf', wf )
 
+        self.femb.MAX_NUM_PACKETS = 7200
         npackets = min(self.femb.MAX_NUM_PACKETS,self.numpacketsrecord)
-        if False:
+        if self.highSpeed:
+            self.femb_config.selectChannel( self.iChip, 0, hsmode=0) # all channels at once
+            time.sleep(0.01)
+            data = self.femb.get_data(npackets)
+            for ch in range(16):
+                chan[0] = int(ch)
+                wf.clear()
+                samples = None
+                if self.packedHighSpeed:
+                    samples = self.convertHighSpeedSimple(data)
+                else:
+                    samples = self.convertHighSpeedPacked(data)
+                for samp in samples[ch]:
+                    wf.push_back( samp )
+                t.Fill()
+        else:
             for ch in range(16):
                 chan[0] = int(ch)
                 self.femb_config.selectChannel( self.iChip, ch)
@@ -80,17 +98,6 @@ class WRITE_ROOT_TREE(object):
                     chNum = ((samp >> 12 ) & 0xF)
                     sampVal = (samp & 0xFFF)
                     wf.push_back( sampVal )
-                t.Fill()
-        else:
-            self.femb_config.selectChannel( self.iChip, 0, hsmode=0) # all channels at once
-            time.sleep(0.01)
-            data = self.femb.get_data(npackets)
-            for ch in range(16):
-                chan[0] = int(ch)
-                wf.clear()
-                samples = self.convertHighSpeedSimple(data)
-                for samp in samples[ch]:
-                    wf.push_back( samp )
                 t.Fill()
 
         #define metadata
@@ -192,10 +199,11 @@ def main():
   parser.addNPacketsArgs(False,10)
   parser.add_argument("chip_number",help="ADC chip number to read out",type=int)
   parser.add_argument("outfilename",help="Output root file name")
+  parser.add_argument("-f","--highSpeed",help="High Speed data readout mode",action="store_true")
   args = parser.parse_args()
 
   config = CONFIG()
 
-  wrt = WRITE_ROOT_TREE(config,args.chip_number,args.outfilename,args.nPackets)
+  wrt = WRITE_ROOT_TREE(config,args.chip_number,args.outfilename,args.nPackets,highSpeed=args.highSpeed)
   wrt.record_data_run()
 
