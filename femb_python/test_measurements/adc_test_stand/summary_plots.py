@@ -457,12 +457,12 @@ class SUMMARY_PLOTS(object):
 
 def main():
     from ...configuration.argument_parser import ArgumentParser
-    from ...configuration import CONFIG
     parser = ArgumentParser(description="Plots summary of ADC Tests")
     parser.add_argument("infilename",help="Input json file name.")
     parser.add_argument("-a","--plotAllOffsets",help="Plot all offset currents, default: only offset disabled",action="store_true")
     args = parser.parse_args()
   
+    from ...configuration import CONFIG
     config = CONFIG()
 
     with open(args.infilename) as infile:

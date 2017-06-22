@@ -25,6 +25,7 @@ import matplotlib.patches as mpatches
 import matplotlib.lines as mlines
 import matplotlib.dates
 from matplotlib.figure import Figure
+from .test_summary import ADC_TEST_SUMMARY
 
 def datetimeFromTimestamp(timestamp):
     result = None
@@ -35,25 +36,6 @@ def datetimeFromTimestamp(timestamp):
     return result
 
 class RANKING(object):
-
-    def fileIsGood(self,jsonpath):
-        filename = os.path.split(jsonpath)[1]
-        if os.path.splitext(filename)[1] == ".json" and "adcTest_" == filename[:8] and not ("Raw" in filename):
-            search = re.search(r"\d\d\d\d\d\d\d\dT\d\d\d\d\d\d",filename)
-            if not search:
-                search = re.search(r"\d\d\d\d-\d\d-\d\dT\d\d:\d\d:\d\d",filename)
-            if not search:
-                raise ValueError("Couldn't find valid timestamp in filepath: "+str(jsonpath))
-            timestamp = search.group(0)
-            timestamp = datetimeFromTimestamp(timestamp)
-            if self.firstTime:
-                if timestamp < self.firstTime:
-                    return False
-            if self.lastTime:
-                if timestamp > self.lastTime:
-                    return False
-            return True
-        return False
 
     def __init__(self,inglobstrs,firstTime=None,lastTime=None):
         """
@@ -67,6 +49,7 @@ class RANKING(object):
             only the timestamp in the filename.
         """
 
+        self.checks = ADC_TEST_SUMMARY.checks
         self.firstTime = firstTime
         self.lastTime = lastTime
         self.colors = ["b","g","orange","gray","y","c","m","plum","sienna","sandybrown","seagreen","deepskyblue","navy"]*5
@@ -233,6 +216,7 @@ class RANKING(object):
                             print("Warning: Could not find stat to draw",e)
                     ax.relim()
                     ax.autoscale_view(False,True,True)
+                    self.plotChecks(ax,self.statsToDraw[statName]["stat"])
                     ax.xaxis.set_major_locator(matplotlib.ticker.MaxNLocator(nbins=7))
                     #ax.set_ylim(0,ax.get_ylim()[1]*1.2)
                     self.set_xticks(ax)
@@ -332,6 +316,7 @@ class RANKING(object):
                             ax.hist(allValsPerCase[key][statName],bin_edges,range=histRange,histtype="step",color=self.colors[iKey])
                         except KeyError as e:
                             print("Warning: Could not find stat to draw",e)
+                    self.plotChecks(ax,self.statsToDraw[statName]["stat"])
                     ax.relim()
                     ax.autoscale_view(False,True,True)
                     ax.xaxis.set_major_locator(matplotlib.ticker.MaxNLocator(nbins=7))
@@ -748,6 +733,63 @@ class RANKING(object):
             for datadict in resultdict[keyval]:
                 print("{:30}  {:5}  {}".format(keyval,datadict["serial"],datadict["timestamp"]))
         return resultdict
+
+    def fileIsGood(self,jsonpath):
+        filename = os.path.split(jsonpath)[1]
+        if os.path.splitext(filename)[1] == ".json" and "adcTest_" == filename[:8] and not ("Raw" in filename):
+            search = re.search(r"\d\d\d\d\d\d\d\dT\d\d\d\d\d\d",filename)
+            if not search:
+                search = re.search(r"\d\d\d\d-\d\d-\d\dT\d\d:\d\d:\d\d",filename)
+            if not search:
+                raise ValueError("Couldn't find valid timestamp in filepath: "+str(jsonpath))
+            timestamp = search.group(0)
+            timestamp = datetimeFromTimestamp(timestamp)
+            if self.firstTime:
+                if timestamp < self.firstTime:
+                    return False
+            if self.lastTime:
+                if timestamp > self.lastTime:
+                    return False
+            return True
+        return False
+
+    def plotChecks(self,ax,stat,histogram=True):
+        print(stat)
+        for temp, color in zip(["warm","cold"],["r","c"]):
+            maxBound = None
+            minBound = None
+            for statType in self.checks[temp]:
+                try:
+                    check = self.checks[temp][statType][stat]
+                except KeyError:
+                    continue
+                else:
+                    checkDir = check[0]
+                    checkVal = check[1]
+                    if checkDir == "lt":
+                        if maxBound is None:
+                            maxBound = checkVal
+                        else:
+                            maxBound = max(maxBound,checkVal)
+                    if checkDir == "gt":
+                        if minBound is None:
+                            minBound = checkVal
+                        else:
+                            minBound = min(minBound,checkVal)
+            if maxBound is None and minBound is None:
+                continue
+            if maxBound is None:
+                ax.axvline(minBound,color=color,lw=2)
+                xlim = ax.get_xlim()
+                width = (xlim[1]-xlim[0])/20.
+                ax.axvspan(minBound-width,minBound,alpha=0.2,color=color,lw=0)
+            elif minBound is None:
+                ax.axvline(maxBound,color=color,lw=2)
+                xlim = ax.get_xlim()
+                width = (xlim[1]-xlim[0])/20.
+                ax.axvspan(maxBound,maxBound+width,alpha=0.2,color=color,lw=0)
+            else:
+                raise RuntimeError("minBound and maxBound are both set")
 
 def main():
     import sys
